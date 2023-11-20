@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"sync"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -14,6 +15,7 @@ import (
 type wsConn struct {
 	*websocket.Conn
 	buff []byte
+	l    sync.Mutex
 }
 
 func NewNetConnFromWsConn(conn *websocket.Conn) net.Conn {
@@ -58,6 +60,8 @@ func (c *wsConn) Read(dst []byte) (int, error) {
 }
 
 func (c *wsConn) Write(b []byte) (int, error) {
+	c.l.Lock()
+	defer c.l.Unlock()
 	if err := c.Conn.WriteMessage(websocket.BinaryMessage, b); err != nil {
 		return 0, err
 	}
