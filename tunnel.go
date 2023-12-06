@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -17,6 +18,55 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+func generateKey() ([]byte, error) {
+	r := rand.Reader
+	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), r)
+	if err != nil {
+		return nil, err
+	}
+	b, err := x509.MarshalECPrivateKey(privateKey)
+	if err != nil {
+		return nil, fmt.Errorf("unable to marshal ECDSA private key: %v", err)
+	}
+	return pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: b}), nil
+}
+
+func NewClientConfig(username, password string, privateKey []byte) *ssh.ClientConfig {
+	auth := []ssh.AuthMethod{ssh.Password(password)}
+	if signer, err := ssh.ParsePrivateKey(privateKey); err == nil {
+		auth = append(auth, ssh.PublicKeys(signer))
+	}
+	return &ssh.ClientConfig{
+		User:            username,
+		Auth:            auth,
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		Timeout:         10 * time.Second,
+	}
+}
+
+func NewServerConfig(username, password string, publicKey []byte) *ssh.ServerConfig {
+	key, _ := generateKey()
+	private, _ := ssh.ParsePrivateKey(key)
+	conf := &ssh.ServerConfig{
+		PasswordCallback: func(conn ssh.ConnMetadata, secret []byte) (*ssh.Permissions, error) {
+			if conn.User() == username && string(secret) == password {
+				return nil, nil
+			}
+			return nil, errors.New("password auth failed")
+		},
+	}
+	conf.AddHostKey(private)
+	if pubKey, _, _, _, err := ssh.ParseAuthorizedKey(publicKey); err == nil {
+		conf.PublicKeyCallback = func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+			if conn.User() == username && string(pubKey.Marshal()) == string(key.Marshal()) {
+				return nil, nil
+			}
+			return nil, errors.New("public key auth failed")
+		}
+	}
+	return conf
+}
+
 func pipe(src io.ReadWriteCloser, dst io.ReadWriteCloser) {
 	var wg sync.WaitGroup
 	var o sync.Once
@@ -27,13 +77,13 @@ func pipe(src io.ReadWriteCloser, dst io.ReadWriteCloser) {
 
 	wg.Add(2)
 	go func() {
-		io.Copy(src, dst)
+		_, _ = io.Copy(src, dst)
 		o.Do(closeReader)
 		wg.Done()
 	}()
 
 	go func() {
-		io.Copy(dst, src)
+		_, _ = io.Copy(dst, src)
 		o.Do(closeReader)
 		wg.Done()
 	}()
@@ -63,19 +113,6 @@ var Next = func(t *SSHTunnel) HandleChannelFunc {
 	}
 }
 
-func generateKey() ([]byte, error) {
-	r := rand.Reader
-	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), r)
-	if err != nil {
-		return nil, err
-	}
-	b, err := x509.MarshalECPrivateKey(privateKey)
-	if err != nil {
-		return nil, fmt.Errorf("unable to marshal ECDSA private key: %v", err)
-	}
-	return pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: b}), nil
-}
-
 // SSHTunnel
 // basically client or server is meaningless in a tunnel, here we define
 // incoming data -> tunnel left/right(AsClientSide) -> tunnel -> tunnel right/left(AsServerSide) -> outgoing data
@@ -88,34 +125,11 @@ type SSHTunnel struct {
 	asServerSide  bool
 }
 
-func (s *SSHTunnel) clientConfig() *ssh.ClientConfig {
-	return &ssh.ClientConfig{
-		User: "",
-		Auth: []ssh.AuthMethod{ssh.Password("")},
-		HostKeyCallback: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
-			return nil
-		},
-		Timeout: 10 * time.Second,
-	}
-}
-
-func (s *SSHTunnel) serverConfig() *ssh.ServerConfig {
-	key, _ := generateKey()
-	private, _ := ssh.ParsePrivateKey(key)
-	conf := &ssh.ServerConfig{
-		PasswordCallback: func(ssh.ConnMetadata, []byte) (*ssh.Permissions, error) {
-			return nil, nil
-		},
-	}
-	conf.AddHostKey(private)
-	return conf
-}
-
 func (s *SSHTunnel) AsClientSide(config *ssh.ClientConfig, discardReq bool) error {
 	var err error
 	s.once.Do(func() {
 		if config == nil {
-			config = s.clientConfig()
+			config = NewClientConfig("", "", nil)
 		}
 		s.sshConn, s.sshNewChannel, s.sshReq, err = ssh.NewClientConn(s.conn, "", config)
 		if err == nil && discardReq {
@@ -129,7 +143,7 @@ func (s *SSHTunnel) AsServerSide(config *ssh.ServerConfig, discardReq bool) erro
 	var err error
 	s.once.Do(func() {
 		if config == nil {
-			config = s.serverConfig()
+			config = NewServerConfig("", "", nil)
 		}
 		s.sshConn, s.sshNewChannel, s.sshReq, err = ssh.NewServerConn(s.conn, config)
 		s.asServerSide = true
