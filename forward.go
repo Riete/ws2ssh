@@ -36,12 +36,10 @@ func (p *PortForwarder) ForwardContext(ctx context.Context) error {
 				p.errCh <- err
 				return
 			}
-			ch, err := p.tunnel.HandleIncoming(p.outgoing)
-			if err != nil {
+			if err != p.tunnel.HandleIncoming(local, p.outgoing) {
 				p.errCh <- err
 				return
 			}
-			go pipe(local, ch)
 		}
 	}()
 	select {

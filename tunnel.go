@@ -104,11 +104,8 @@ var Direct = func(src io.ReadWriteCloser, remote string) {
 // Next data transfer by next tunnel
 var Next = func(t *SSHTunnel) HandleChannelFunc {
 	return func(src io.ReadWriteCloser, remote string) {
-		dst, err := t.HandleIncoming(remote)
-		if err != nil {
+		if err := t.HandleIncoming(src, remote); err != nil {
 			_ = src.Close()
-		} else {
-			pipe(src, dst)
 		}
 	}
 }
@@ -174,12 +171,13 @@ func (s *SSHTunnel) SSHReq() <-chan *ssh.Request {
 	return s.sshReq
 }
 
-func (s *SSHTunnel) HandleIncoming(remote string) (ssh.Channel, error) {
+func (s *SSHTunnel) HandleIncoming(src io.ReadWriteCloser, remote string) error {
 	ch, reqs, err := s.sshConn.OpenChannel("ssh-ch", []byte(remote))
 	if err == nil {
 		go ssh.DiscardRequests(reqs)
+		go pipe(src, ch)
 	}
-	return ch, err
+	return err
 }
 
 func (s *SSHTunnel) HandleOutgoing(hf HandleChannelFunc) error {
