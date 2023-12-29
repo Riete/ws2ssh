@@ -196,6 +196,10 @@ func (s *SSHTunnel) Wait() error {
 	return s.sshConn.Wait()
 }
 
+func (s *SSHTunnel) SetupSocks5ProxyServer() (*Socks5Proxy, error) {
+	return NewSocks5Proxy(s.sshConn)
+}
+
 func NewSSHTunnel(conn *websocket.Conn) *SSHTunnel {
 	return &SSHTunnel{conn: NewNetConnFromWsConn(conn)}
 }

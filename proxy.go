@@ -4,8 +4,9 @@ import (
 	"context"
 	"net"
 
-	"github.com/armon/go-socks5"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/armon/go-socks5"
 )
 
 type Socks5Proxy struct {
