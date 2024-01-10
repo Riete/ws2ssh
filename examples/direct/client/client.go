@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/riete/go-websocket"
+	ws "github.com/riete/go-websocket"
 	"github.com/riete/ws2ssh"
 )
 
