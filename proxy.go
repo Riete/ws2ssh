@@ -39,17 +39,17 @@ func NewSocks5Proxy(conn ssh.Conn) (*Socks5Proxy, error) {
 	return &Socks5Proxy{s: s}, err
 }
 
-type RemoteResolver struct {
+type NameResolver struct {
 	net  string
 	ip   string
 	port string
 }
 
-func (r RemoteResolver) Resolve(ctx context.Context, name string) (context.Context, net.IP, error) {
+func (n NameResolver) Resolve(ctx context.Context, name string) (context.Context, net.IP, error) {
 	resolver := &net.Resolver{
 		PreferGo: true,
 		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-			return net.Dial(r.net, r.ip+":"+r.port)
+			return net.Dial(n.net, n.ip+":"+n.port)
 		},
 	}
 	ips, err := resolver.LookupIP(ctx, "ip", name)
@@ -59,8 +59,8 @@ func (r RemoteResolver) Resolve(ctx context.Context, name string) (context.Conte
 	return ctx, ips[0], err
 }
 
-func NewRemoteResolver(net, ip, port string) socks5.NameResolver {
-	return &RemoteResolver{net: net, ip: ip, port: port}
+func NewNameResolver(net, ip, port string) socks5.NameResolver {
+	return &NameResolver{net: net, ip: ip, port: port}
 }
 
 func NewSocks5ProxyWithNameResolver(conn ssh.Conn, resolver socks5.NameResolver) (*Socks5Proxy, error) {
