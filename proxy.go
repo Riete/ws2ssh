@@ -9,15 +9,15 @@ import (
 	"github.com/armon/go-socks5"
 )
 
-type Socks5Proxy struct {
+type Socks5ProxyServer struct {
 	s *socks5.Server
 }
 
-func (s Socks5Proxy) ListenAndServe(addr string) error {
+func (s Socks5ProxyServer) ListenAndServe(addr string) error {
 	return s.ListenAndServeContext(context.Background(), addr)
 }
 
-func (s Socks5Proxy) ListenAndServeContext(ctx context.Context, addr string) error {
+func (s Socks5ProxyServer) ListenAndServeContext(ctx context.Context, addr string) error {
 	l, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err
@@ -27,16 +27,6 @@ func (s Socks5Proxy) ListenAndServeContext(ctx context.Context, addr string) err
 		_ = l.Close()
 	}()
 	return s.s.Serve(l)
-}
-
-func NewSocks5Proxy(conn ssh.Conn) (*Socks5Proxy, error) {
-	conf := &socks5.Config{
-		Dial: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			return NewNetConnFromSSHConn(conn, addr)
-		},
-	}
-	s, err := socks5.New(conf)
-	return &Socks5Proxy{s: s}, err
 }
 
 type NameResolver struct {
@@ -63,13 +53,13 @@ func NewNameResolver(net, ip, port string) socks5.NameResolver {
 	return &NameResolver{net: net, ip: ip, port: port}
 }
 
-func NewSocks5ProxyWithNameResolver(conn ssh.Conn, resolver socks5.NameResolver) (*Socks5Proxy, error) {
+func NewSocks5ProxyServer(conn ssh.Conn, resolver socks5.NameResolver) *Socks5ProxyServer {
 	conf := &socks5.Config{
 		Dial: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			return NewNetConnFromSSHConn(conn, addr)
 		},
 		Resolver: resolver,
 	}
-	s, err := socks5.New(conf)
-	return &Socks5Proxy{s: s}, err
+	s, _ := socks5.New(conf)
+	return &Socks5ProxyServer{s: s}
 }

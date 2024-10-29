@@ -188,8 +188,8 @@ func (s *SSHTunnel) Wait() error {
 	return s.sshConn.Wait()
 }
 
-func (s *SSHTunnel) SetupSocks5ProxyServer() (*Socks5Proxy, error) {
-	return NewSocks5Proxy(s.sshConn)
+func (s *SSHTunnel) BuildSocks5ProxyServer(resolver NameResolver) *Socks5ProxyServer {
+	return NewSocks5ProxyServer(s.sshConn, resolver)
 }
 
 func NewSSHTunnel(conn *websocket.Conn) *SSHTunnel {
