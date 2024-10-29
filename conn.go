@@ -87,11 +87,10 @@ func NewNetConnFromSSHConn(conn ssh.Conn, remote string) (net.Conn, error) {
 		return nil, errors.New("the ssh connection is nil")
 	}
 
-	dst, reqs, err := conn.OpenChannel("ssh-ch", []byte(remote))
+	dst, _, err := conn.OpenChannel("ssh-ch", []byte(remote))
 	if err != nil {
 		return nil, err
 	}
-	go ssh.DiscardRequests(reqs)
 
 	return &sshConn{
 		dst:  dst,

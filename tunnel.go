@@ -122,21 +122,18 @@ type SSHTunnel struct {
 	asServerSide  bool
 }
 
-func (s *SSHTunnel) AsClientSide(config *ssh.ClientConfig, discardReq bool) error {
+func (s *SSHTunnel) AsClientSide(config *ssh.ClientConfig) error {
 	var err error
 	s.once.Do(func() {
 		if config == nil {
 			config = NewClientConfig("", "", nil)
 		}
 		s.sshConn, s.sshNewChannel, s.sshReq, err = ssh.NewClientConn(s.conn, "", config)
-		if err == nil && discardReq {
-			go ssh.DiscardRequests(s.sshReq)
-		}
 	})
 	return err
 }
 
-func (s *SSHTunnel) AsServerSide(config *ssh.ServerConfig, discardReq bool) error {
+func (s *SSHTunnel) AsServerSide(config *ssh.ServerConfig) error {
 	var err error
 	s.once.Do(func() {
 		if config == nil {
@@ -144,9 +141,6 @@ func (s *SSHTunnel) AsServerSide(config *ssh.ServerConfig, discardReq bool) erro
 		}
 		s.sshConn, s.sshNewChannel, s.sshReq, err = ssh.NewServerConn(s.conn, config)
 		s.asServerSide = true
-		if err == nil && discardReq {
-			go ssh.DiscardRequests(s.sshReq)
-		}
 	})
 	return err
 }
@@ -172,9 +166,8 @@ func (s *SSHTunnel) SSHReq() <-chan *ssh.Request {
 }
 
 func (s *SSHTunnel) HandleIncoming(src io.ReadWriteCloser, remote string) error {
-	ch, reqs, err := s.sshConn.OpenChannel("ssh-ch", []byte(remote))
+	ch, _, err := s.sshConn.OpenChannel("ssh-ch", []byte(remote))
 	if err == nil {
-		go ssh.DiscardRequests(reqs)
 		go pipe(src, ch)
 	}
 	return err
@@ -182,11 +175,10 @@ func (s *SSHTunnel) HandleIncoming(src io.ReadWriteCloser, remote string) error 
 
 func (s *SSHTunnel) HandleOutgoing(hf HandleChannelFunc) error {
 	for ch := range s.sshNewChannel {
-		stream, req, err := ch.Accept()
+		stream, _, err := ch.Accept()
 		if err != nil {
 			return err
 		}
-		go ssh.DiscardRequests(req)
 		go hf(stream, string(ch.ExtraData()))
 	}
 	return nil
