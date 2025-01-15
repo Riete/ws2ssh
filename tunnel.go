@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/armon/go-socks5"
+
 	"github.com/gorilla/websocket"
 
 	"golang.org/x/crypto/ssh"
@@ -188,7 +190,7 @@ func (s *SSHTunnel) Wait() error {
 	return s.sshConn.Wait()
 }
 
-func (s *SSHTunnel) BuildSocks5ProxyServer(resolver NameResolver) *Socks5ProxyServer {
+func (s *SSHTunnel) BuildSocks5ProxyServer(resolver socks5.NameResolver) *Socks5ProxyServer {
 	return NewSocks5ProxyServer(s.sshConn, resolver)
 }
 
