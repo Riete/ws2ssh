@@ -2,6 +2,7 @@ package ws2ssh
 
 import (
 	"context"
+	"log"
 	"net"
 
 	"golang.org/x/crypto/ssh"
@@ -53,12 +54,34 @@ func NewNameResolver(net, ip, port string) socks5.NameResolver {
 	return &NameResolver{net: net, ip: ip, port: port}
 }
 
-func NewSocks5ProxyServer(conn ssh.Conn, resolver socks5.NameResolver) *Socks5ProxyServer {
+type ProxyOption func(*socks5.Config)
+
+func WithResolver(resolver socks5.NameResolver) ProxyOption {
+	return func(c *socks5.Config) {
+		c.Resolver = resolver
+	}
+}
+
+func WithCredentials(credentials map[string]string) ProxyOption {
+	return func(c *socks5.Config) {
+		c.Credentials = socks5.StaticCredentials(credentials)
+	}
+}
+
+func WithLogger(logger *log.Logger) ProxyOption {
+	return func(c *socks5.Config) {
+		c.Logger = logger
+	}
+}
+
+func NewSocks5ProxyServer(conn ssh.Conn, options ...ProxyOption) *Socks5ProxyServer {
 	conf := &socks5.Config{
 		Dial: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			return NewNetConnFromSSHConn(conn, addr)
 		},
-		Resolver: resolver,
+	}
+	for _, option := range options {
+		option(conf)
 	}
 	s, _ := socks5.New(conf)
 	return &Socks5ProxyServer{s: s}
