@@ -1,6 +1,7 @@
 package ws2ssh
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -176,14 +177,25 @@ func (s *SSHTunnel) HandleIncoming(src io.ReadWriteCloser, remote string) error 
 }
 
 func (s *SSHTunnel) HandleOutgoing(hf HandleChannelFunc) error {
-	for ch := range s.sshNewChannel {
-		stream, _, err := ch.Accept()
-		if err != nil {
-			return err
+	return s.HandleOutgoingContext(context.Background(), hf)
+}
+
+func (s *SSHTunnel) HandleOutgoingContext(ctx context.Context, hf HandleChannelFunc) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case ch, ok := <-s.sshNewChannel:
+			if !ok {
+				return nil
+			}
+			stream, _, err := ch.Accept()
+			if err != nil {
+				return err
+			}
+			go hf(stream, string(ch.ExtraData()))
 		}
-		go hf(stream, string(ch.ExtraData()))
 	}
-	return nil
 }
 
 func (s *SSHTunnel) Wait() error {
