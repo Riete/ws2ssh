@@ -146,11 +146,11 @@ func (s *SSHTunnel) AsServerSide(config *ssh.ServerConfig) error {
 	return err
 }
 
-func (s *SSHTunnel) IsServerSide() bool {
+func (s *SSHTunnel) ServerSide() bool {
 	return s.asServerSide
 }
 
-func (s *SSHTunnel) IsClientSide() bool {
+func (s *SSHTunnel) ClientSide() bool {
 	return !s.asServerSide
 }
 
@@ -167,6 +167,9 @@ func (s *SSHTunnel) SSHReq() <-chan *ssh.Request {
 }
 
 func (s *SSHTunnel) HandleIncoming(src io.ReadWriteCloser, remote string) error {
+	if !s.ClientSide() {
+		return errors.New("HandleIncoming is only for client side")
+	}
 	ch, _, err := s.sshConn.OpenChannel("ssh-ch", []byte(remote))
 	if err == nil {
 		go pipe(src, ch)
@@ -179,6 +182,12 @@ func (s *SSHTunnel) HandleOutgoing(hf HandleChannelFunc) error {
 }
 
 func (s *SSHTunnel) HandleOutgoingContext(ctx context.Context, hf HandleChannelFunc) error {
+	if !s.ServerSide() {
+		return errors.New("HandleOutgoing is only for server side")
+	}
+	if hf == nil {
+		hf = Direct
+	}
 	for {
 		select {
 		case <-ctx.Done():
