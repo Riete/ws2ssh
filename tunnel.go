@@ -209,7 +209,7 @@ func (s *SSHTunnel) Wait() error {
 	return s.sshConn.Wait()
 }
 
-func (s *SSHTunnel) BuildSocks5ProxyServer(options ...ProxyOption) *Socks5ProxyServer {
+func (s *SSHTunnel) BuildSocks5ProxyServer(options ...ProxyServerOption) *Socks5ProxyServer {
 	return NewSocks5ProxyServer(s.sshConn, options...)
 }
 

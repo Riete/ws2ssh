@@ -54,27 +54,27 @@ func NewNameResolver(net, ip, port string) socks5.NameResolver {
 	return &NameResolver{net: net, ip: ip, port: port}
 }
 
-type ProxyOption func(*socks5.Config)
+type ProxyServerOption func(*socks5.Config)
 
-func WithResolver(resolver socks5.NameResolver) ProxyOption {
+func WithResolver(resolver socks5.NameResolver) ProxyServerOption {
 	return func(c *socks5.Config) {
 		c.Resolver = resolver
 	}
 }
 
-func WithCredentials(credentials map[string]string) ProxyOption {
+func WithCredentials(credentials map[string]string) ProxyServerOption {
 	return func(c *socks5.Config) {
 		c.Credentials = socks5.StaticCredentials(credentials)
 	}
 }
 
-func WithLogger(logger *log.Logger) ProxyOption {
+func WithLogger(logger *log.Logger) ProxyServerOption {
 	return func(c *socks5.Config) {
 		c.Logger = logger
 	}
 }
 
-func NewSocks5ProxyServer(conn ssh.Conn, options ...ProxyOption) *Socks5ProxyServer {
+func NewSocks5ProxyServer(conn ssh.Conn, options ...ProxyServerOption) *Socks5ProxyServer {
 	conf := &socks5.Config{
 		Dial: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			return NewNetConnFromSSHConn(conn, addr)
