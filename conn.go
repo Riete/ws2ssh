@@ -15,7 +15,7 @@ import (
 type wsConn struct {
 	*websocket.Conn
 	buff []byte
-	l    sync.Mutex
+	mu   sync.Mutex
 }
 
 func NewNetConnFromWsConn(conn *websocket.Conn) net.Conn {
@@ -60,8 +60,8 @@ func (c *wsConn) Read(dst []byte) (int, error) {
 }
 
 func (c *wsConn) Write(b []byte) (int, error) {
-	c.l.Lock()
-	defer c.l.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if err := c.Conn.WriteMessage(websocket.BinaryMessage, b); err != nil {
 		return 0, err
 	}
@@ -75,11 +75,13 @@ func (c *wsConn) SetDeadline(t time.Time) error {
 	return c.Conn.SetWriteDeadline(t)
 }
 
-var ErrorInvalidConnection = errors.New("invalid connection")
+const inactiveTime = time.Hour
 
 type sshConn struct {
-	dst  io.ReadWriteCloser
-	conn ssh.Conn
+	dst    io.ReadWriteCloser
+	conn   ssh.Conn
+	mu     sync.Mutex
+	ticker *time.Ticker
 }
 
 func NewNetConnFromSSHConn(conn ssh.Conn, remote string) (net.Conn, error) {
@@ -91,26 +93,28 @@ func NewNetConnFromSSHConn(conn ssh.Conn, remote string) (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	return &sshConn{
-		dst:  dst,
-		conn: conn,
-	}, nil
+	sc := &sshConn{
+		dst:    dst,
+		conn:   conn,
+		ticker: time.NewTicker(inactiveTime),
+	}
+	go func() {
+		<-sc.ticker.C
+		sc.ticker.Stop()
+		sc.ticker = nil
+		_ = sc.Close()
+	}()
+	return sc, nil
 }
 
 func (s *sshConn) Read(b []byte) (n int, err error) {
-	if s != nil {
-		return s.dst.Read(b)
-	}
-	return 0, ErrorInvalidConnection
+	s.resetTicker()
+	return s.dst.Read(b)
 }
 
 func (s *sshConn) Write(b []byte) (n int, err error) {
-	if s != nil {
-		return s.dst.Write(b)
-	}
-
-	return 0, ErrorInvalidConnection
+	s.resetTicker()
+	return s.dst.Write(b)
 }
 
 func (s *sshConn) Close() error {
@@ -126,6 +130,14 @@ func (s *sshConn) LocalAddr() net.Addr {
 
 func (s *sshConn) RemoteAddr() net.Addr {
 	return s.conn.RemoteAddr()
+}
+
+func (s *sshConn) resetTicker() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.ticker != nil {
+		s.ticker.Reset(inactiveTime)
+	}
 }
 
 func (s *sshConn) SetDeadline(t time.Time) error {
