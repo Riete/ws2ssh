@@ -35,7 +35,7 @@ func (c *wsConn) Read(dst []byte) (int, error) {
 		src = c.buff
 		c.buff = nil
 	} else {
-		_, msg, err := c.Conn.ReadMessage()
+		_, msg, err := c.ReadMessage()
 		if err != nil {
 			return 0, err
 		}
@@ -62,17 +62,17 @@ func (c *wsConn) Read(dst []byte) (int, error) {
 func (c *wsConn) Write(b []byte) (int, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if err := c.Conn.WriteMessage(websocket.BinaryMessage, b); err != nil {
+	if err := c.WriteMessage(websocket.BinaryMessage, b); err != nil {
 		return 0, err
 	}
 	return len(b), nil
 }
 
 func (c *wsConn) SetDeadline(t time.Time) error {
-	if err := c.Conn.SetReadDeadline(t); err != nil {
+	if err := c.SetReadDeadline(t); err != nil {
 		return err
 	}
-	return c.Conn.SetWriteDeadline(t)
+	return c.SetWriteDeadline(t)
 }
 
 const inactiveTime = time.Hour

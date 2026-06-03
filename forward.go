@@ -31,12 +31,13 @@ func (p *PortForwarder) ForwardContext(ctx context.Context) error {
 	defer l.Close()
 	go func() {
 		for {
-			local, err := l.Accept()
+			var local net.Conn
+			local, err = l.Accept()
 			if err != nil {
 				p.errCh <- err
 				return
 			}
-			if err != p.tunnel.HandleIncoming(local, p.outgoing) {
+			if err = p.tunnel.HandleIncoming(local, p.outgoing); err != nil {
 				p.errCh <- err
 				return
 			}
@@ -45,11 +46,11 @@ func (p *PortForwarder) ForwardContext(ctx context.Context) error {
 	select {
 	case <-ctx.Done():
 		return nil
-	case err := <-p.errCh:
+	case err = <-p.errCh:
 		return err
 	}
 }
 
 func NewPortForwarder(incoming, outgoing string, tunnel *SSHTunnel) *PortForwarder {
-	return &PortForwarder{tunnel: tunnel, incoming: incoming, outgoing: outgoing, errCh: make(chan error)}
+	return &PortForwarder{tunnel: tunnel, incoming: incoming, outgoing: outgoing, errCh: make(chan error, 1)}
 }
