@@ -69,25 +69,20 @@ func NewServerConfig(username, password string, publicKey []byte) *ssh.ServerCon
 }
 
 func pipe(src io.ReadWriteCloser, dst io.ReadWriteCloser) {
-	var wg sync.WaitGroup
+	wg := new(sync.WaitGroup)
 	var o sync.Once
 	closeReader := func() {
 		_ = src.Close()
 		_ = dst.Close()
 	}
-
-	wg.Add(2)
-	go func() {
+	wg.Go(func() {
 		_, _ = io.Copy(src, dst)
 		o.Do(closeReader)
-		wg.Done()
-	}()
-
-	go func() {
+	})
+	wg.Go(func() {
 		_, _ = io.Copy(dst, src)
 		o.Do(closeReader)
-		wg.Done()
-	}()
+	})
 	wg.Wait()
 }
 
